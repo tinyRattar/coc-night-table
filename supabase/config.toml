@@ -1,0 +1,5 @@
+project_id = "coc-night-table"
+
+[functions.table]
+# Uses the existing room-scoped, expiring sessions, not Supabase Auth JWTs.
+verify_jwt = false

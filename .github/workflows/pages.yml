@@ -1,21 +1,53 @@
-name: Deploy GitHub Pages
-
+name: Deploy full application
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
-  group: github-pages
+  group: production-deployment
   cancel-in-progress: false
-
+env:
+  SUPABASE_PROJECT_ID: wuhgpugfbbkjvzvkhpdf
+  VITE_COC_API_URL: https://wuhgpugfbbkjvzvkhpdf.supabase.co/functions/v1/table
 jobs:
-  deploy:
+  backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck && npm run test:rules
+      - run: npm run build:supabase
+      - uses: supabase/setup-cli@v2
+        with:
+          version: latest
+      - name: Check deployment credentials
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo 'Add SUPABASE_ACCESS_TOKEN to repository secrets'; exit 1; }
+      - name: Apply database migrations and deploy API
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          node scripts/migrate-supabase.mjs
+          supabase functions deploy table --project-ref "$SUPABASE_PROJECT_ID" --use-api
+      - name: Verify backend before publishing frontend
+        env:
+          COC_API_URL: ${{ env.VITE_COC_API_URL }}
+        run: npm run test:supabase
+  pages:
+    needs: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pages: write
@@ -24,16 +56,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Validate static entry
-        run: test -s pages/index.html && test -s pages/styles.css
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-      - name: Upload static project homepage
-        uses: actions/upload-pages-artifact@v4
+      - uses: actions/checkout@v6
         with:
-          path: pages
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/pages
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

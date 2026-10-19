@@ -43,6 +43,9 @@
   ],
   "exclude": [
     "node_modules",
-    "examples"
+    "examples",
+    "server/supabase/entry.ts",
+    "server/supabase/env.ts",
+    "supabase/functions"
   ]
 }

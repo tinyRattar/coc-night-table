@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { postgresQuery, database } from '../server/supabase/sql.ts';
+assert.equal(postgresQuery("SELECT user FROM members WHERE user=? AND name='user?'"), 'SELECT "user" FROM members WHERE "user"=$1 AND name=\'user?\'');
+assert.equal(postgresQuery('UPDATE rooms SET keeper=? WHERE keeper IS ?'), 'UPDATE rooms SET keeper=$1 WHERE keeper IS NOT DISTINCT FROM $2');
+assert.ok(postgresQuery('INSERT OR IGNORE INTO members (user) VALUES (?)').endsWith('ON CONFLICT DO NOTHING'));
+const calls=[];
+const db=database({async unsafe(sql, values){calls.push({sql,values});return Object.assign([{value:1}],{count:1})}});
+const malicious="'); DROP TABLE members;--";
+const result=await db.prepare('SELECT user FROM members WHERE name=?').bind(malicious).first();
+assert.equal(result.value,1); assert.equal(calls[0].values[0],malicious); assert.ok(!calls[0].sql.includes(malicious));
+const batch=await db.batch([db.prepare('UPDATE rooms SET keeper=?').bind('a'),db.prepare('DELETE FROM rooms WHERE id=?').bind('b')]);
+assert.equal(batch[0].meta.changes,1);assert.deepEqual(calls.slice(1).map(c=>c.values),[['a'],['b']]);
+console.log('PASS Postgres adapter: bound values, reserved columns, null comparison, conflict syntax and sequential batches');

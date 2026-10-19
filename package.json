@@ -13,7 +13,12 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "db:local": "node scripts/migrate-local.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:pages": "vite --config vite.pages.config.ts",
+    "build:pages": "vite build --config vite.pages.config.ts",
+    "build:supabase": "node scripts/build-supabase.mjs",
+    "test:rules": "node --test tests/*.test.mjs",
+    "test:supabase": "node tests/supabase-smoke.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -61,7 +66,8 @@
     "typescript": "5.9.3",
     "vinext": "1.0.0-beta.5",
     "vite": "8.0.13",
-    "wrangler": "4.92.0"
+    "wrangler": "4.92.0",
+    "esbuild": "0.28.0"
   },
   "type": "module",
   "overrides": {

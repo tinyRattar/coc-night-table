@@ -1,6 +1,6 @@
 # 秘典 · CoC 多人调查桌
 
-面向《克苏鲁的呼唤》第七版的中文多人跑团工具。React / TypeScript + Vinext，服务端运行于 Cloudflare Workers，使用 D1 保存房间与角色，R2 保存素材。
+面向《克苏鲁的呼唤》第七版的中文多人跑团工具。React / TypeScript；完整界面部署到 GitHub Pages，Supabase 提供 Postgres、私有素材存储和服务端接口。旧 Sites 构建入口保留用于过渡。
 
 ## 功能
 
@@ -14,7 +14,13 @@
 
 这是辅助工具，部分战斗及疯狂状态仍需 KP 裁定。规则实现与限制见界面说明及测试。项目不包含官方规则书、怪物资料库或用户上传的素材。
 
-## 本地运行
+## 完整应用与本地开发
+
+线上入口：https://tinyrattar.github.io/coc-night-table/
+
+新版开发与部署说明见 [docs/SUPABASE.md](docs/SUPABASE.md)。执行 `npm ci`，配置 `VITE_COC_API_URL` 后使用 `npm run dev:pages`。
+
+## 旧 Sites 本地运行
 
 要求 Node.js 24（至少 22.13）及 npm。Windows、macOS、Linux 均可；初次安装需要联网。
 
@@ -66,7 +72,7 @@ node tests/materials.mjs
 
 通过分支和 Pull Request 协作，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。本仓库从当前线上源码快照建立，不包含部署凭证、生产数据库、房间邀请链接或历史提交中的本地信息。
 
-当前线上版本仍通过 Sites 发布；向 GitHub 推送不会自动部署。维护者确认 PR 后，将变更同步到 Sites 工作区，再完成构建与发布。新建 Sites 实例时，由 Sites 工具设置该实例的 `project_id`；仓库的 `.openai/hosting.json` 仅保留 D1/R2 声明。底层模板说明见 [docs/SITES-STARTER.md](docs/SITES-STARTER.md)。独立 Cloudflare 部署还需配置自己的 D1、R2 与 Worker，不能直接使用原站点资源。
+推送 main 会自动部署 Supabase 后端，端到端验证通过后发布完整 GitHub Pages 应用。旧 Sites 独立保留，不同步数据。配置步骤见 [Supabase 部署说明](docs/SUPABASE.md)。
 
 ## 数据与访问
 
@@ -78,8 +84,6 @@ node tests/materials.mjs
 
 仓库公开用于查看和协作，尚未为项目原创代码指定开源许可证。若需要在其他项目中再分发或使用，请先与维护者确认授权。第三方代码保留各自许可证，例如 `build/sites-vite-plugin.LICENSE` 和 `vendor/` 内的许可文件。
 
-## GitHub Pages 自动发布
+## 自动发布
 
-项目首页位于 https://tinyrattar.github.io/coc-night-table/ 。向 main 推送后，GitHub Actions 的 Deploy GitHub Pages 工作流自动上传 pages/ 并发布，也可在 Actions 中手动运行。
-
-修改 pages/index.html 和 pages/styles.css 可更新首页与使用说明。工作流仅发布 pages/，不上传应用源码、数据库或运行缓存。Pages 首页链接到现有 Sites 跑团应用；应用前后端修改仍需通过 Sites 单独部署。工作流使用 GitHub 自动提供的 GITHUB_TOKEN，无需填写部署密钥。
+[Actions 工作流](https://github.com/tinyRattar/coc-night-table/actions/workflows/pages.yml) 按“检查 → 迁移数据库 → 部署后端 → 多人权限测试 → 发布完整前端”顺序执行。仓库需配置 `SUPABASE_ACCESS_TOKEN`，无需数据库密码。
