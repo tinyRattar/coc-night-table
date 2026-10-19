@@ -1,0 +1,10 @@
+'use client';
+import {Dices,Swords,Edit3,BookOpen} from 'lucide-react';
+import type {Card} from './game';
+export type Activity='check'|'damage'|'combat'|'materials';
+export function ActivityTabs({value,onChange,prefix}:{value:Activity;onChange:(value:Activity)=>void;prefix:string}){
+ const keys:Activity[]=['check','combat','materials'];return <div className="activity-tabs" role="tablist" aria-label="检定、战斗与素材">{keys.map((key,i)=><button key={key} type="button" role="tab" id={`${prefix}-tab-${key}`} aria-controls={`${prefix}-panel-${key}`} aria-selected={value===key} tabIndex={value===key?0:-1} onClick={()=>onChange(key)} onKeyDown={e=>{let next:Activity|undefined;if(e.key==='ArrowLeft')next=keys[(i+keys.length-1)%keys.length];if(e.key==='ArrowRight')next=keys[(i+1)%keys.length];if(e.key==='Home')next='check';if(e.key==='End')next='materials';if(next){e.preventDefault();onChange(next);document.getElementById(`${prefix}-tab-${next}`)?.focus()}}}>{i===0?<Dices size={18}/>:i===2?<BookOpen size={18}/>:<Swords size={18}/>}<span>{['检定','战斗','素材'][i]}</span></button>)}</div>;
+}
+export function DamageOverview({card,onEdit}:{card:Card;onEdit?:()=>void}){
+ return <section className="panel damage-overview"><div className="panel-header"><div><span className="eyebrow muted">INVESTIGATOR STATUS</span><h2>当前角色状态</h2></div>{onEdit&&<button className="icon-button" onClick={onEdit} aria-label="编辑角色状态"><Edit3 size={17}/></button>}</div><div className="damage-overview-body"><div className="damage-person"><span className="avatar">{card.name.slice(0,1)}</span><div><h3>{card.name}</h3><p>{card.occupation}</p></div></div><div className="damage-stats"><div><span>理智 SAN</span><strong>{card.skills.理智??'—'}</strong></div><div><span>体力 HP</span><strong>{card.resources?.hp??'—'}<small>/ {card.resources?.hpMax??'—'}</small></strong></div><div><span>魔法 MP</span><strong>{card.resources?.mp??'—'}<small>/ {card.resources?.mpMax??'—'}</small></strong></div><div><span>伤害加值 DB</span><strong>{card.damageBonus||'0'}</strong></div></div><p className="tool-hint">理智损失可自动扣除 SAN；武器伤害仅计算结果，HP 由角色本人记录。</p></div></section>;
+}

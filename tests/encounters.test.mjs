@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {sanityRoll,sanityLoss,weaponDamage,expressionBounds} from '../app/encounters.ts';
+let calls=0;const direct=sanityLoss(3,'1D6',()=>{calls++;return 4});assert.equal(calls,1);assert.equal(direct.loss,5);assert.equal(direct.after,0);assert.equal(direct.passed,null);assert.equal(direct.needsInt,true);
+assert.equal(sanityLoss(60,'3',()=>{throw Error('fixed loss must not roll')}).after,57);
+assert.throws(()=>sanityLoss(60,'1D6-2',()=>0));
+assert.deepEqual(expressionBounds('2D6+1D4-2'),{min:1,max:14});
+let values=[0,1,2];let r=sanityRoll(60,'0','1D6',()=>values.shift()??0);assert.equal(r.result,10);assert.equal(r.loss,0);assert.equal(r.passed,true);
+values=[9,9,0];r=sanityRoll(30,'0','1D6',()=>values.shift()??0);assert.equal(r.result,99);assert.equal(r.loss,6);assert.equal(r.after,24);assert.equal(r.needsInt,true);
+values=[0,0,0];r=sanityRoll(60,'0','1D10',()=>values.shift()??0);assert.equal(r.result,100);assert.equal(r.loss,10);
+assert.throws(()=>sanityRoll(60,'0','1D6-2',()=>0));
+assert.equal(weaponDamage('1D4+DB','1D4','normal',true,()=>0).result,2);
+assert.equal(weaponDamage('1D4+DB','1D4','extreme',true,()=>0).result,9);
+assert.equal(weaponDamage('1D6+DB','1D4','extreme',false,()=>0).result,10);
+assert.equal(weaponDamage('1D10','1D4','extreme',true,()=>0).result,11);
+assert.equal(weaponDamage('1D4+DB','-2','normal',true,()=>0).result,0);
+assert.equal(weaponDamage('4D6','0','extreme',false,()=>0).result,24);
+assert.throws(()=>weaponDamage('1D4+DB','bogus','normal',true,()=>0));
+console.log('PASS: SAN success/fumble/loss bounds, maximum damage, impale extra dice, negative DB, shotgun');
