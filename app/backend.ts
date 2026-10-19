@@ -13,7 +13,8 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);
   const session = localStorage.getItem(storageKey(room));
   if (session) headers.set('x-coc-session', session);
-  const response = await fetch(endpoint.replace(/\/$/, '') + path.replace(/^\/api/, ''), { ...options, headers, credentials: 'omit' });
+  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000);
+  const response = await fetch(endpoint.replace(/\/$/, '') + path.replace(/^\/api/, ''), { ...options, headers, signal, credentials: 'omit' });
   if (url.pathname === '/api/identity' && options.method === 'POST' && response.ok) {
     const data: any = await response.clone().json();
     if (action === 'logout') localStorage.removeItem(storageKey(room));

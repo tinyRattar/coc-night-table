@@ -3,12 +3,12 @@
 1. 先开 Issue 描述问题或拟调整的功能，涉及规则时附适用版本和依据。
 2. 从 `main` 创建功能分支；没有写权限的协作者可 Fork 后提交 PR。
 3. 本地启动独立房间验证。不要提交真实玩家数据、密码、邀请链接或私有素材。
-4. 运行 `npm run typecheck` 与 `npm run build`；规则、权限、并发修改应运行对应测试。
+4. 运行 `npm run typecheck`、`npm run test:rules`、`npm run build:pages` 与 `npm run build:supabase`；规则、权限、并发修改应运行对应测试。
 5. PR 描述中写明改动目的、验证方式、界面截图及已知限制。
 
 ## 数据库变更
 
-修改 `db/schema.ts` 后运行 `npm run db:generate`，提交新 SQL 和对应元数据。不要修改已发布的历史迁移。运行 `npm run db:local` 验证升级路径。
+新版数据库迁移放在 `supabase/migrations/`，使用 Postgres SQL。不要修改已发布的历史迁移。部署和校验和规则见 [docs/SUPABASE.md](docs/SUPABASE.md)。旧 `drizzle/` 仅供 Sites 本地运行。
 
 ## 必须保留的行为
 
@@ -16,6 +16,6 @@
 - KP 权限、目标成员与房间关系在服务端验证。
 - 人物卡变更使用版本检查，记录与数值变更保持一致。
 - 新 UI 支持小屏、键盘聚焦及可理解的表单标签。
-- 测试使用独立测试房间，GitHub 合并不直接影响线上房间。
+- 测试使用独立测试房间；合并 main 会自动部署线上应用，请在 PR 阶段完成审查。
 
 发现可能泄露暗骰、密码或未开放素材的问题时，请避免在公开 Issue 中附真实数据或可用凭证；先联系仓库维护者。

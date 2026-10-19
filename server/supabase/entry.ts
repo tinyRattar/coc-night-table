@@ -6,10 +6,6 @@ import * as file from '../../app/api/materials/file/route';
 import { database } from './sql';
 import { requestDatabase } from './env';
 
-const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, {
-  prepare: false, max: 3, idle_timeout: 20, connect_timeout: 15,
-  types: { bigint: { to: 20, from: [20], serialize: String, parse: Number } },
-});
 const origins = new Set((Deno.env.get('COC_ALLOWED_ORIGINS') || 'https://tinyrattar.github.io,http://127.0.0.1:5173,http://localhost:5173').split(','));
 const routes: Record<string, any> = { identity, table, materials, 'materials/file': file };
 
@@ -20,6 +16,12 @@ export async function handle(request: Request) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   const url = new URL(request.url);
   const path = url.pathname.split('/table/')[1] || '';
+  // Edge isolates can be short-lived: never leave one idle pool per invocation.
+  const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, {
+    prepare: false, max: 1, idle_timeout: 1, connect_timeout: 10,
+    types: { bigint: { to: 20, from: [20], serialize: String, parse: Number } },
+  });
+  try {
   if (path === 'health') {
     try { await sql`select 1 from rooms limit 1`; return Response.json({ ok: true }, { headers: cors }); }
     catch { return Response.json({ error: '数据库尚未就绪' }, { status: 503, headers: cors }); }
@@ -41,6 +43,8 @@ export async function handle(request: Request) {
     headers.set('origin', url.origin);
     const internal = new Request(request, { headers });
     const response: Response = await sql.begin(async (tx: any) => {
+      await tx.unsafe("SET LOCAL statement_timeout = '15s'");
+      await tx.unsafe("SET LOCAL lock_timeout = '10s'");
       if (request.method !== 'GET' && /^[a-f0-9]{32}$/.test(room)) await tx`select id from rooms where id=${room} for update`;
       return requestDatabase.run(database(tx), () => handler(internal));
     });
@@ -58,5 +62,6 @@ export async function handle(request: Request) {
     console.error('Backend request failed', e instanceof Error ? e.message : 'unknown');
     return Response.json({ error: '服务暂时不可用，请稍后重试' }, { status: 500, headers: cors });
   }
+  } finally { await sql.end({ timeout: 2 }); }
 }
 Deno.serve(handle);

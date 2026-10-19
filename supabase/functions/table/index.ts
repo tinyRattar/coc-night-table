@@ -953,18 +953,18 @@ async function GET3(req) {
 // server/supabase/sql.ts
 function postgresQuery(source) {
   let index = 0;
-  let sql2 = source.replace(/'([^']|'')*'|\buser\b|\?|\bAS (isKeeper|hasPassword)\b/g, (token) => {
+  let sql = source.replace(/'([^']|'')*'|\buser\b|\?|\bAS (isKeeper|hasPassword)\b/g, (token) => {
     if (token.startsWith("'")) return token;
     if (token === "?") return `$${++index}`;
     if (token === "user") return '"user"';
     return `AS "${token.slice(3)}"`;
   });
-  sql2 = sql2.replace(/\bkeeper IS (\$\d+)/g, "keeper IS NOT DISTINCT FROM $1");
-  if (sql2.includes("INSERT OR IGNORE")) sql2 = sql2.replace("INSERT OR IGNORE", "INSERT") + " ON CONFLICT DO NOTHING";
-  if (sql2.startsWith("INSERT INTO identity_attempts")) {
-    sql2 = sql2.replace(/WHEN started</g, "WHEN identity_attempts.started<").replace("ELSE count+1", "ELSE identity_attempts.count+1").replace("ELSE started END", "ELSE identity_attempts.started END");
+  sql = sql.replace(/\bkeeper IS (\$\d+)/g, "keeper IS NOT DISTINCT FROM $1");
+  if (sql.includes("INSERT OR IGNORE")) sql = sql.replace("INSERT OR IGNORE", "INSERT") + " ON CONFLICT DO NOTHING";
+  if (sql.startsWith("INSERT INTO identity_attempts")) {
+    sql = sql.replace(/WHEN started</g, "WHEN identity_attempts.started<").replace("ELSE count+1", "ELSE identity_attempts.count+1").replace("ELSE started END", "ELSE identity_attempts.started END");
   }
-  return sql2;
+  return sql;
 }
 function database(client) {
   class Statement {
@@ -1004,13 +1004,6 @@ function database(client) {
 }
 
 // server/supabase/entry.ts
-var sql = postgres(Deno.env.get("SUPABASE_DB_URL"), {
-  prepare: false,
-  max: 3,
-  idle_timeout: 20,
-  connect_timeout: 15,
-  types: { bigint: { to: 20, from: [20], serialize: String, parse: Number } }
-});
 var origins = new Set((Deno.env.get("COC_ALLOWED_ORIGINS") || "https://tinyrattar.github.io,http://127.0.0.1:5173,http://localhost:5173").split(","));
 var routes = { identity: route_exports, table: route_exports2, materials: route_exports3, "materials/file": route_exports4 };
 async function handle(request) {
@@ -1020,47 +1013,60 @@ async function handle(request) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   const url = new URL(request.url);
   const path = url.pathname.split("/table/")[1] || "";
-  if (path === "health") {
-    try {
-      await sql`select 1 from rooms limit 1`;
-      return Response.json({ ok: true }, { headers: cors });
-    } catch {
-      return Response.json({ error: "\u6570\u636E\u5E93\u5C1A\u672A\u5C31\u7EEA" }, { status: 503, headers: cors });
-    }
-  }
-  const handler = routes[path]?.[request.method];
-  if (!handler) return Response.json({ error: "\u63A5\u53E3\u4E0D\u5B58\u5728" }, { status: 404, headers: cors });
+  const sql = postgres(Deno.env.get("SUPABASE_DB_URL"), {
+    prepare: false,
+    max: 1,
+    idle_timeout: 1,
+    connect_timeout: 10,
+    types: { bigint: { to: 20, from: [20], serialize: String, parse: Number } }
+  });
   try {
-    let room = url.searchParams.get("room") || "";
-    if (request.method === "POST" && (path === "identity" || path === "table")) {
-      if (Number(request.headers.get("content-length") || 0) > 5e4) return Response.json({ error: "\u8BF7\u6C42\u8FC7\u5927" }, { status: 413, headers: cors });
-      const input = await request.clone().json();
-      room = String(input.room || "");
-      if (path === "table" && input.action === "create") return Response.json({ error: "\u8BF7\u901A\u8FC7\u767B\u5F55\u9875\u9762\u521B\u5EFA\u623F\u95F4" }, { status: 400, headers: cors });
+    if (path === "health") {
+      try {
+        await sql`select 1 from rooms limit 1`;
+        return Response.json({ ok: true }, { headers: cors });
+      } catch {
+        return Response.json({ error: "\u6570\u636E\u5E93\u5C1A\u672A\u5C31\u7EEA" }, { status: 503, headers: cors });
+      }
     }
-    const headers = new Headers(request.headers);
-    headers.delete("cookie");
-    const token = request.headers.get("x-coc-session") || "";
-    headers.set("cookie", `coc_login_${room}=${/^[a-f0-9]{64}$/.test(token) ? token : "out"}`);
-    headers.set("origin", url.origin);
-    const internal = new Request(request, { headers });
-    const response = await sql.begin(async (tx) => {
-      if (request.method !== "GET" && /^[a-f0-9]{32}$/.test(room)) await tx`select id from rooms where id=${room} for update`;
-      return requestDatabase.run(database(tx), () => handler(internal));
-    });
-    const outputHeaders = new Headers(response.headers);
-    Object.entries(cors).forEach(([k, v]) => outputHeaders.set(k, v));
-    outputHeaders.delete("set-cookie");
-    if (path === "identity" && request.method === "POST" && response.ok) {
-      const data = await response.json();
-      const cookie = response.headers.get("set-cookie") || "";
-      data.session = cookie.match(/coc_login_[a-f0-9]+=([^;]+)/)?.[1] || null;
-      return Response.json(data, { status: response.status, headers: outputHeaders });
+    const handler = routes[path]?.[request.method];
+    if (!handler) return Response.json({ error: "\u63A5\u53E3\u4E0D\u5B58\u5728" }, { status: 404, headers: cors });
+    try {
+      let room = url.searchParams.get("room") || "";
+      if (request.method === "POST" && (path === "identity" || path === "table")) {
+        if (Number(request.headers.get("content-length") || 0) > 5e4) return Response.json({ error: "\u8BF7\u6C42\u8FC7\u5927" }, { status: 413, headers: cors });
+        const input = await request.clone().json();
+        room = String(input.room || "");
+        if (path === "table" && input.action === "create") return Response.json({ error: "\u8BF7\u901A\u8FC7\u767B\u5F55\u9875\u9762\u521B\u5EFA\u623F\u95F4" }, { status: 400, headers: cors });
+      }
+      const headers = new Headers(request.headers);
+      headers.delete("cookie");
+      const token = request.headers.get("x-coc-session") || "";
+      headers.set("cookie", `coc_login_${room}=${/^[a-f0-9]{64}$/.test(token) ? token : "out"}`);
+      headers.set("origin", url.origin);
+      const internal = new Request(request, { headers });
+      const response = await sql.begin(async (tx) => {
+        await tx.unsafe("SET LOCAL statement_timeout = '15s'");
+        await tx.unsafe("SET LOCAL lock_timeout = '10s'");
+        if (request.method !== "GET" && /^[a-f0-9]{32}$/.test(room)) await tx`select id from rooms where id=${room} for update`;
+        return requestDatabase.run(database(tx), () => handler(internal));
+      });
+      const outputHeaders = new Headers(response.headers);
+      Object.entries(cors).forEach(([k, v]) => outputHeaders.set(k, v));
+      outputHeaders.delete("set-cookie");
+      if (path === "identity" && request.method === "POST" && response.ok) {
+        const data = await response.json();
+        const cookie = response.headers.get("set-cookie") || "";
+        data.session = cookie.match(/coc_login_[a-f0-9]+=([^;]+)/)?.[1] || null;
+        return Response.json(data, { status: response.status, headers: outputHeaders });
+      }
+      return new Response(response.body, { status: response.status, headers: outputHeaders });
+    } catch (e) {
+      console.error("Backend request failed", e instanceof Error ? e.message : "unknown");
+      return Response.json({ error: "\u670D\u52A1\u6682\u65F6\u4E0D\u53EF\u7528\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }, { status: 500, headers: cors });
     }
-    return new Response(response.body, { status: response.status, headers: outputHeaders });
-  } catch (e) {
-    console.error("Backend request failed", e instanceof Error ? e.message : "unknown");
-    return Response.json({ error: "\u670D\u52A1\u6682\u65F6\u4E0D\u53EF\u7528\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" }, { status: 500, headers: cors });
+  } finally {
+    await sql.end({ timeout: 2 });
   }
 }
 Deno.serve(handle);

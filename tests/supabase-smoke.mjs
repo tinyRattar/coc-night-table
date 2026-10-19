@@ -9,7 +9,7 @@ function client() {
     sessions,
     async raw(path, method='GET', body) {
       const room = (body instanceof FormData ? '' : body?.room) || new URL(path, 'https://test.invalid').searchParams.get('room') || '';
-      const response = await fetch(endpoint + path, {method, headers:{Origin:origin, ...(sessions.has(room)?{'x-coc-session':sessions.get(room)}:{}),...(body && !(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body?(body instanceof FormData?body:JSON.stringify(body)):undefined});
+      const response = await fetch(endpoint + path, {method, signal:AbortSignal.timeout(45000), headers:{Origin:origin, ...(sessions.has(room)?{'x-coc-session':sessions.get(room)}:{}),...(body && !(body instanceof FormData)?{'Content-Type':'application/json'}:{})},body:body?(body instanceof FormData?body:JSON.stringify(body)):undefined});
       if(path==='/identity' && method==='POST' && response.ok){const d=await response.clone().json();if(body.action==='logout')sessions.delete(room);else if(d.session)sessions.set(d.room||room,d.session)}
       return response;
     },
@@ -23,6 +23,7 @@ assert.equal((await fetch(endpoint+'/health')).status,200);
 assert.equal((await fetch(endpoint+'/health',{headers:{Origin:'https://untrusted.invalid'}})).status,403);
 const preflight=await fetch(endpoint+'/table',{method:'OPTIONS',headers:{Origin:origin,'Access-Control-Request-Headers':'x-coc-session,content-type'}});
 assert.equal(preflight.status,204);assert.equal(preflight.headers.get('access-control-allow-origin'),origin);
+console.log('Checking identity and shared room...');
 const identity=await kp.identity('new','',{name:'迁移验证 KP',password:'migration-check'});const room=identity.room;
 const pc=await player.identity('new',room,{name:'迁移验证调查员'});
 let k=await kp.table('join',room),p=await player.table('join',room);
@@ -31,6 +32,7 @@ await visitor.table('sync',room,{},401);
 await visitor.identity('login',room,{identity:identity.user,password:'wrong'},403);
 const directory=await visitor.json('/identity?room='+room);assert.equal(directory.identities.length,2);assert.ok(directory.identities.every(i=>!('password_hash' in i)));
 await visitor.identity('login',room,{identity:pc.user,password:''});assert.equal((await visitor.table('sync',room)).user,pc.user);
+console.log('Checking HP/SAN and private rolls...');
 const card={name:'迁移验证调查员',occupation:'验证',skills:{敏捷:80,体质:60,体型:60,理智:65,侦查:70,斗殴:999,'射击（手枪）':999},resources:{hp:12,hpMax:12},weapons:[{name:'拳',skill:'斗殴',damage:'2',impale:false}],damageBonus:'0'};
 p=await player.table('save',room,{card,cardRevision:p.cardRevision});
 const old=p.cardRevision;
@@ -42,6 +44,7 @@ const secret=await kp.table('roll',room,{kind:'check',skill:'侦查',visibility:
 const publicView=await player.table('sync',room);assert.ok(!publicView.rolls.some(r=>r.id===secret.rolled.id));assert.ok(publicView.members.every(m=>!m.card));
 await player.table('roll',room,{kind:'check',skill:'侦查',visibility:'keeper'},403);
 async function op(operation,extra={}){k=await kp.table('sync',room);k=await kp.table('combat',room,{operation,combatRevision:k.combat.revision,...extra});return k}
+console.log('Checking combat and concurrent settlement...');
 await op('add',{owner:pc.user});await op('add',{card:{...card,name:'测试 NPC',skills:{...card.skills,敏捷:30},resources:{hp:40,hpMax:40}}});
 await op('start');const a=k.combat.fighters.find(f=>f.owner),n=k.combat.fighters.find(f=>!f.owner);
 await op('declare',{actor:a.id,target:n.id,weapon:-1,temporaryWeapon:{name:'临时手枪',damage:'2',impale:true},skill:'射击（手枪）',type:'handgun',shots:3});
@@ -53,6 +56,7 @@ assert.deepEqual(responses.map(r=>r.status).sort(),[200,400]);
 p=await player.table('sync',room);k=await kp.table('sync',room);
 assert.ok(k.combat.log.some(r=>r.audience==='keeper'));assert.ok(p.combat.log.every(r=>r.audience==='public'));assert.equal(p.combat.fighters.find(f=>!f.owner).card,undefined);assert.equal(p.card.resources.hp,p.combat.fighters.find(f=>f.owner===p.user).hp);
 await op('end');
+console.log('Checking private material storage...');
 const path='/materials?room='+room;
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXioAAAAASUVORK5CYII=','base64');
 function form(){const f=new FormData();f.set('title','迁移验证图片');f.set('body','权限与文件存储验证');f.set('file',new File([png],'test.png',{type:'image/png'}));return f}
@@ -65,6 +69,7 @@ assert.equal((await player.json(path)).materials.length,1);assert.equal((await p
 material=(await kp.json(path)).materials[0];await kp.json(path,'PATCH',{id,revision:material.revision,operation:'hide'});
 assert.equal((await player.raw(filePath)).status,404);
 material=(await kp.json(path)).materials[0];await kp.json(path,'DELETE',{id,revision:material.revision});assert.equal((await kp.raw(filePath)).status,404);
+console.log('Checking session revocation and KP transfer...');
 await player.identity('password',room,{currentPassword:'',password:'changed'});await visitor.table('sync',room,{},401);
 await player.identity('logout',room);await player.table('sync',room,{},401);
 await player.identity('login',room,{identity:pc.user,password:'changed'});
