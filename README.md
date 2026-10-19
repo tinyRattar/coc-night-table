@@ -77,3 +77,9 @@ node tests/materials.mjs
 ## 授权说明
 
 仓库公开用于查看和协作，尚未为项目原创代码指定开源许可证。若需要在其他项目中再分发或使用，请先与维护者确认授权。第三方代码保留各自许可证，例如 `build/sites-vite-plugin.LICENSE` 和 `vendor/` 内的许可文件。
+
+## GitHub Pages 自动发布
+
+项目首页位于 https://tinyrattar.github.io/coc-night-table/ 。向 main 推送后，GitHub Actions 的 Deploy GitHub Pages 工作流自动上传 pages/ 并发布，也可在 Actions 中手动运行。
+
+修改 pages/index.html 和 pages/styles.css 可更新首页与使用说明。工作流仅发布 pages/，不上传应用源码、数据库或运行缓存。Pages 首页链接到现有 Sites 跑团应用；应用前后端修改仍需通过 Sites 单独部署。工作流使用 GitHub 自动提供的 GITHUB_TOKEN，无需填写部署密钥。
