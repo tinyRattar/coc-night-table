@@ -28,7 +28,9 @@ jobs:
       - run: npm run build:supabase
       - uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.121.0
+        env:
+          SUPABASE_CLI_GITHUB_TOKEN: ${{ github.token }}
       - name: Check deployment credentials
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
